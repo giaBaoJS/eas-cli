@@ -2151,6 +2151,8 @@ export type AppObserve = {
   /** Time-bucketed exception counts split into fatal vs non-fatal, for the stacked-bar chart. */
   errorTimeSeries: AppObserveErrorTimeSeries;
   events: AppObserveEventsConnection;
+  /** Highest Expo SDK version seen in telemetry over the trailing 30 days; null when none was reported. */
+  latestExpoSdkVersion?: Maybe<Scalars['String']['output']>;
   navigationRoutes: AppObserveNavigationRoutesConnection;
   /** Active users and sessions for the Overview engagement band, across all versions. */
   overviewEngagement: AppObserveOverviewEngagement;
@@ -2162,8 +2164,8 @@ export type AppObserve = {
   totalEventCount: Scalars['Int']['output'];
   /**
    * Approximate count of unique users (`eas_client_id`) with at least one
-   * supported-metric event in `[startTime, endTime)`. Uses ClickHouse's
-   * HyperLogLog `uniq()`, so the value can drift by a small percent on apps
+   * supported-metric event in `[startTime, endTime)`. Uses a ClickHouse
+   * HyperLogLog sketch, so the value can drift by a small percent on apps
    * with very large user bases. `metricNames` on the input is currently
    * ignored: the count is always over all supported metrics, matching the
    * universe used by `appVersions` headline counts.
@@ -3665,7 +3667,10 @@ export type AppleDeviceRegistrationRequest = {
 
 export type AppleDeviceRegistrationRequestMutation = {
   __typename?: 'AppleDeviceRegistrationRequestMutation';
-  /** Create an Apple Device registration request */
+  /**
+   * Create an Apple Device registration request.
+   * Pass singleUse to create a fresh request that closes after the first device is registered.
+   */
   createAppleDeviceRegistrationRequest: AppleDeviceRegistrationRequest;
 };
 
@@ -3673,6 +3678,7 @@ export type AppleDeviceRegistrationRequestMutation = {
 export type AppleDeviceRegistrationRequestMutationCreateAppleDeviceRegistrationRequestArgs = {
   accountId: Scalars['ID']['input'];
   appleTeamId: Scalars['ID']['input'];
+  singleUse?: InputMaybe<Scalars['Boolean']['input']>;
 };
 
 /** Publicly visible data for an AppleDeviceRegistrationRequest. */
@@ -4334,6 +4340,8 @@ export type Build = ActivityTimelineProjectActivity & BuildOrBuildJob & {
   sdkVersion?: Maybe<Scalars['String']['output']>;
   /** @deprecated Use 'resolvedImage' for the concrete image the build runs on. */
   selectedImage?: Maybe<Scalars['String']['output']>;
+  /** The active ssh session for this build, if any. */
+  sshSession?: Maybe<TurtleSshSession>;
   status: BuildStatus;
   submissions: Array<Submission>;
   updateChannel?: Maybe<UpdateChannel>;
@@ -4578,6 +4586,8 @@ export type BuildMutation = {
   createLocalBuild: CreateBuildResult;
   /** Delete an EAS Build build */
   deleteBuild: Build;
+  /** Generate a token for subscribing to an EAS Build log channel */
+  generateLogsCentrifugoSubscriptionToken: RealtimeLogsCentrifugoSubscriptionToken;
   /** Retry an Android EAS Build */
   retryAndroidBuild: Build;
   /** Retry an iOS EAS Build */
@@ -4618,6 +4628,12 @@ export type BuildMutationCreateLocalBuildArgs = {
 
 export type BuildMutationDeleteBuildArgs = {
   buildId: Scalars['ID']['input'];
+};
+
+
+export type BuildMutationGenerateLogsCentrifugoSubscriptionTokenArgs = {
+  buildId: Scalars['ID']['input'];
+  thread?: InputMaybe<Scalars['String']['input']>;
 };
 
 
@@ -4692,6 +4708,7 @@ export enum BuildPhase {
   SaveCache = 'SAVE_CACHE',
   SetUpBuildEnvironment = 'SET_UP_BUILD_ENVIRONMENT',
   SpinUpBuilder = 'SPIN_UP_BUILDER',
+  SshSession = 'SSH_SESSION',
   StartBuild = 'START_BUILD',
   Unknown = 'UNKNOWN',
   UploadApplicationArchive = 'UPLOAD_APPLICATION_ARCHIVE',
@@ -5097,7 +5114,10 @@ export type CreateDeviceRunSessionInput = {
   appId: Scalars['ID']['input'];
   /**
    * Stop the session automatically after this many minutes without observed
-   * session activity. If omitted, the session has no idle timeout.
+   * session activity. Must be positive and smaller than the session's maximum
+   * duration (2 hours, or maxRunTimeMinutes when set). Only supported for
+   * agent-device and argent sessions. If omitted, the session has no idle
+   * timeout.
    */
   maxIdleTimeMinutes?: InputMaybe<Scalars['Int']['input']>;
   /**
@@ -5867,6 +5887,11 @@ export type DeviceRunSession = {
   finishedAt?: Maybe<Scalars['DateTime']['output']>;
   id: Scalars['ID']['output'];
   initiatingActor?: Maybe<Actor>;
+  /**
+   * Number of minutes without observed session activity after which the session
+   * is stopped automatically. Null when the session has no idle timeout.
+   */
+  maxIdleTimeMinutes?: Maybe<Scalars['Int']['output']>;
   /**
    * Human-readable label chosen by whoever started the session. Null when the
    * session was started without one.
@@ -8271,6 +8296,8 @@ export type JobRun = {
   priority: JobRunPriority;
   /** String describing the worker profile used to run this job run. */
   resourceClassDisplayName: Scalars['String']['output'];
+  /** The active ssh session for this job run, if any. */
+  sshSession?: Maybe<TurtleSshSession>;
   startedAt?: Maybe<Scalars['DateTime']['output']>;
   status: JobRunStatus;
   updateGroups: Array<Array<Update>>;
@@ -8285,18 +8312,12 @@ export type JobRunError = {
   message: Scalars['String']['output'];
 };
 
-export type JobRunLogsCentrifugoSubscriptionToken = {
-  __typename?: 'JobRunLogsCentrifugoSubscriptionToken';
-  channel: Scalars['String']['output'];
-  token: Scalars['String']['output'];
-};
-
 export type JobRunMutation = {
   __typename?: 'JobRunMutation';
   /** Cancel an EAS Job Run */
   cancelJobRun: JobRun;
   /** Generate a token for subscribing to an EAS Job Run log channel */
-  generateLogsCentrifugoSubscriptionToken: JobRunLogsCentrifugoSubscriptionToken;
+  generateLogsCentrifugoSubscriptionToken: RealtimeLogsCentrifugoSubscriptionToken;
 };
 
 
@@ -9046,6 +9067,12 @@ export type RealtimeLogsCentrifugoConnectionToken = {
   token: Scalars['String']['output'];
 };
 
+export type RealtimeLogsCentrifugoSubscriptionToken = {
+  __typename?: 'RealtimeLogsCentrifugoSubscriptionToken';
+  channel: Scalars['String']['output'];
+  token: Scalars['String']['output'];
+};
+
 export type RealtimeLogsMutation = {
   __typename?: 'RealtimeLogsMutation';
   /** Generate a token for connecting to EAS Logs Centrifugo */
@@ -9345,6 +9372,7 @@ export type RootMutation = {
   supabaseProject: SupabaseProjectMutation;
   tunnels: TunnelsMutation;
   turtleBrownfieldArtifacts: TurtleBrownfieldArtifactMutation;
+  turtleSshSession: TurtleSshSessionMutation;
   update: UpdateMutation;
   updateBranch: UpdateBranchMutation;
   updateChannel: UpdateChannelMutation;
@@ -10392,6 +10420,63 @@ export type TurtleBrownfieldArtifactQueryLatestForAppArgs = {
   bundleName: Scalars['String']['input'];
   platform: AppPlatform;
 };
+
+/**
+ * Everything a client needs to open the ssh connection, reported by the worker once it has dialed
+ * the relay. Reading this decrypts the connection secret, so it is gated at account PUBLISH.
+ */
+export type TurtleSshConnectionConfig = {
+  __typename?: 'TurtleSshConnectionConfig';
+  host: Scalars['String']['output'];
+  reconnecting: Scalars['Boolean']['output'];
+  secret: Scalars['String']['output'];
+  type: TurtleSshTransportType;
+};
+
+export type TurtleSshConnectionConfigInput = {
+  host: Scalars['String']['input'];
+  reconnecting?: InputMaybe<Scalars['Boolean']['input']>;
+  secret: Scalars['String']['input'];
+  type: TurtleSshTransportType;
+};
+
+export type TurtleSshSession = {
+  __typename?: 'TurtleSshSession';
+  build?: Maybe<Build>;
+  connectionConfig: TurtleSshConnectionConfig;
+  createdAt: Scalars['DateTime']['output'];
+  id: Scalars['ID']['output'];
+  initiatingActor?: Maybe<Actor>;
+  jobRun?: Maybe<JobRun>;
+  sessionSettings: TurtleSshSessionSettings;
+  updatedAt: Scalars['DateTime']['output'];
+};
+
+export type TurtleSshSessionMutation = {
+  __typename?: 'TurtleSshSessionMutation';
+  createOrUpdateTurtleSshSession: TurtleSshSession;
+};
+
+
+export type TurtleSshSessionMutationCreateOrUpdateTurtleSshSessionArgs = {
+  connectionConfig: TurtleSshConnectionConfigInput;
+  sessionSettings: TurtleSshSessionSettingsInput;
+  turtleBuildId?: InputMaybe<Scalars['ID']['input']>;
+  turtleJobRunId?: InputMaybe<Scalars['ID']['input']>;
+};
+
+export type TurtleSshSessionSettings = {
+  __typename?: 'TurtleSshSessionSettings';
+  idleTimeoutSeconds: Scalars['Int']['output'];
+};
+
+export type TurtleSshSessionSettingsInput = {
+  idleTimeoutSeconds: Scalars['Int']['input'];
+};
+
+export enum TurtleSshTransportType {
+  UptermV1 = 'UPTERM_V1'
+}
 
 export type UniqueUsersOverTimeData = {
   __typename?: 'UniqueUsersOverTimeData';
@@ -12757,6 +12842,11 @@ export type WorkflowJob = {
    * update_group_id output. Empty for other job types or when the group has no updates.
    */
   rolloutUpdateGroup: Array<Update>;
+  /**
+   * Why the server skipped this job without running it. Null for jobs that
+   * were not skipped and for jobs created before the reason was recorded.
+   */
+  skipReason?: Maybe<WorkflowJobSkipReason>;
   status: WorkflowJobStatus;
   turtleBuild?: Maybe<Build>;
   turtleJobRun?: Maybe<JobRun>;
@@ -12827,6 +12917,26 @@ export enum WorkflowJobReviewDecision {
   Approved = 'APPROVED',
   Rejected = 'REJECTED'
 }
+
+export type WorkflowJobSkipReason = WorkflowJobSkipReasonIfConditionNotMet | WorkflowJobSkipReasonUnsuccessfulDependencies;
+
+export type WorkflowJobSkipReasonDependency = {
+  __typename?: 'WorkflowJobSkipReasonDependency';
+  key: Scalars['String']['output'];
+  name: Scalars['String']['output'];
+  status: WorkflowJobStatus;
+};
+
+export type WorkflowJobSkipReasonIfConditionNotMet = {
+  __typename?: 'WorkflowJobSkipReasonIfConditionNotMet';
+  /** The job's if expression as written in the workflow YAML. */
+  condition: Scalars['String']['output'];
+};
+
+export type WorkflowJobSkipReasonUnsuccessfulDependencies = {
+  __typename?: 'WorkflowJobSkipReasonUnsuccessfulDependencies';
+  dependencies: Array<WorkflowJobSkipReasonDependency>;
+};
 
 export enum WorkflowJobStatus {
   ActionRequired = 'ACTION_REQUIRED',
@@ -12975,6 +13085,7 @@ export type WorkflowRun = ActivityTimelineProjectActivity & {
   retriedWorkflowRun?: Maybe<WorkflowRun>;
   retries: Array<WorkflowRun>;
   sourceExpiresAt?: Maybe<Scalars['DateTime']['output']>;
+  sshSettings?: Maybe<WorkflowRunSshSettings>;
   status: WorkflowRunStatus;
   triggerEventType: WorkflowRunTriggerEventType;
   triggeringLabelName?: Maybe<Scalars['String']['output']>;
@@ -13060,6 +13171,11 @@ export type WorkflowRunQuery = {
 
 export type WorkflowRunQueryByIdArgs = {
   workflowRunId: Scalars['ID']['input'];
+};
+
+export type WorkflowRunSshSettings = {
+  __typename?: 'WorkflowRunSshSettings';
+  idleTimeoutSeconds: Scalars['Int']['output'];
 };
 
 export enum WorkflowRunStatus {
