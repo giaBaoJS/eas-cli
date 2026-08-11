@@ -5096,6 +5096,13 @@ export type CreateDeviceRunSessionEventLogUploadSessionResult = {
 export type CreateDeviceRunSessionInput = {
   appId: Scalars['ID']['input'];
   /**
+   * Identifier of the virtual device to start for the session. On iOS this is a
+   * Simulator device name or UDID (e.g. "iPhone 16 Pro"). On Android this is an
+   * AVD hardware profile id (e.g. "pixel_7"). If omitted, the runner picks a
+   * default device.
+   */
+  deviceIdentifier?: InputMaybe<Scalars['String']['input']>;
+  /**
    * Override for the underlying turtle job run's max run time, in minutes. Must
    * be non-negative and smaller than 120 (2 hours). Only customizable on paid
    * plans. If omitted, the default is derived based on the job run's priority.
